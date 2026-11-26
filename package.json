@@ -1,26 +1,34 @@
 {
-  "name": "freakrating-mod-launcher",
-  "productName": "FreakRating Mods",
-  "version": "1.0.0",
-  "description": "Лаунчер на базе freakrating-client-main с папкой модов",
-  "author": "dhshfhd2-bot",
+  "name": "freakrating-client",
+  "productName": "FreakRating",
+  "version": "0.4.1",
+  "description": "Десктоп-клиент 3D-мира FreakRating",
+  "author": {
+    "name": "FreakRating",
+    "email": "noreply@freakrating.lol"
+  },
   "license": "UNLICENSED",
   "private": true,
   "main": "launcher.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-static.mjs",
-    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never"
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --url=http://localhost:4000/world",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test \"test/*.test.mjs\"",
+    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "dist:linux": "npm run build && electron-builder --linux AppImage deb --x64 --publish never"
   },
   "build": {
-    "appId": "lol.freakrating.modlauncher",
-    "productName": "FreakRating Mods",
-    "executableName": "FreakRating Mods",
-    "artifactName": "FreakRating-Mods-Setup-${version}.${ext}",
-    "directories": { "output": "release", "buildResources": "build" },
+    "appId": "lol.freakrating.client",
+    "productName": "FreakRating",
+    "executableName": "FreakRating",
+    "artifactName": "FreakRating-Setup-${version}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
     "files": [
-      "launcher.js",
-      "mod-loader.js",
-      "mods/**/*",
       "dist/**/*",
       "assets/**/*",
       "package.json"
@@ -31,7 +39,14 @@
     ],
     "npmRebuild": false,
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.ico"
     },
     "nsis": {
@@ -40,9 +55,40 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "FreakRating Mods"
+      "shortcutName": "FreakRating"
     },
-    "extraResources": [{ "from": "dj", "to": "dj" }]
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Game",
+      "icon": "build/icon.png",
+      "maintainer": "FreakRating <noreply@freakrating.lol>",
+      "synopsis": "Десктоп-клиент 3D-мира FreakRating",
+      "artifactName": "FreakRating-${version}-${arch}.${ext}",
+      "executableArgs": [
+        "--ozone-platform-hint=auto"
+      ]
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0"
+      ]
+    },
+    "extraResources": [
+      {
+        "from": "dj",
+        "to": "dj"
+      }
+    ]
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
@@ -55,6 +101,12 @@
     "@xhayper/discord-rpc": "^1.5.1",
     "uiohook-napi": "^1.5.5"
   },
+  "allowScripts": {
+    "uiohook-napi": false,
+    "electron-winstaller": false,
+    "@vencord/venmic": false
+  },
+  "homepage": "https://freakrating.lol",
   "optionalDependencies": {
     "@vencord/venmic": "^7.2.5"
   }

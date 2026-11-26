@@ -1,23 +1,20 @@
-# FreakRating Mods — установщик на базе freakrating-client-main
+# FreakRating — папка с модами (портативная версия)
 
-Установщик ставит файлы из `E:\freakrating-client-dj\freakrating-client-main` **без модов**.
-Это отдельная программа со своим `appId`, она не перезаписывает оригинальный FreakRating.
-Профиль общий (`%APPDATA%\FreakRating`), поэтому вход не сбрасывается.
+Ничего устанавливать не нужно. Это точная папка `freakrating-client-main` с загрузчиком модов.
 
-## Установка
+## Как запустить
 
-1. Скачай `FreakRating-Mods-Setup-1.0.0.exe` из [Releases](../../releases) и запусти.
-2. После установки рядом с `FreakRating Mods.exe` появится папка `mods`.
-3. Скачай нужные `.js`-моды из репозиториев `FreakRating-Mod-*` и положи в `mods`.
-4. Запусти лаунчер через ярлык **FreakRating Mods**.
+1. Скачай `FreakRating-Client-Mods.zip` из [Releases](../../releases).
+2. Распакуй в любую папку.
+3. Запусти `start.bat` — он откроет игру так же, как у тебя `E:\freakrating-client-dj\freakrating-client-main\start.bat`.
 
-Чтобы убрать мод — удали его `.js` из `mods`. Лог внедрения: `mods\_inject.log`.
+Если Electron не найдётся, `start.bat` сам выполнит `npm install electron`.
 
-Моды:
-- https://github.com/dhshfhd2-bot/FreakRating-Mod-Optimization
-- https://github.com/dhshfhd2-bot/FreakRating-Mod-Map
-- https://github.com/dhshfhd2-bot/FreakRating-Mod-Guitar
-- https://github.com/dhshfhd2-bot/FreakRating-Mod-Stencil
-- https://github.com/dhshfhd2-bot/FreakRating-Mod-TikTok
+## Моды
+
+Все моды лежат в папке `mods`. Хочешь убрать мод — удали его `.js` оттуда.
+Лог внедрения: `mods\_inject.log`.
+
+Дополнительные моды: репозитории `FreakRating-Mod-*` на этом аккаунте.
 
 Оригинальный лаунчер: https://github.com/Egorrko/freakrating-client

@@ -1,3 +1,7 @@
 @echo off
-cd /d "E:\Games\FreakRating-ModLauncher"
-"E:\freakrating-client-dj\freakrating-client-main\node_modules\electron\dist\electron.exe" .
+cd /d "%~dp0"
+if not exist "node_modules\electron\dist\electron.exe" (
+  echo Устанавливаю Electron...
+  call npm install electron
+)
+node_modules\electron\dist\electron.exe .
