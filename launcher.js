@@ -1,9 +1,3 @@
-// launcher.js — запускает моды и затем сам клиент. Ошибка в одном моде не ломает остальные.
-const load = (name) => {
-  try { require(name); console.log('[launcher] подключено: ' + name); }
-  catch (e) { console.log('[launcher] ОШИБКА в ' + name + ': ' + (e && e.stack || e)); }
-};
-load('./mod-loader.js');
-load('./tiktok-phone.js');   // TikTok поверх телефона
-console.log('[launcher] запускаю клиент');
-require('./dist/main/main.js');
+// Чистый лаунчер: только загрузчик модов и клиент.
+require('./mod-loader.js')
+require('./dist/main/main.js')

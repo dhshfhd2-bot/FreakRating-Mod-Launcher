@@ -21,9 +21,6 @@ export function applyGpuSwitches(settings: Settings, cliBackend?: string): Appli
   // Чёрный список GPU Chromium выключает WebGL/ускорение на старых драйверах —
   // в мире это и есть «чёрный экран».
   add("ignore-gpu-blocklist")
-  // Меньше копирований кадра между GPU и композитолом — заметно на слабых ПК.
-  add("enable-gpu-rasterization")
-  add("enable-zero-copy")
   // Звук мира и голоса без клика по странице.
   add("autoplay-policy", "no-user-gesture-required")
   // Свёрнутое/закрытое другим окном окно не душим: голос и тик мира живут в фоне.
