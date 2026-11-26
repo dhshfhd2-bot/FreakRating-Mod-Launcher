@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // Точка входа: флаги графики, окно мира, падения, рация, Discord, IPC.
 const electron_1 = require("electron");
 const node_path_1 = require("node:path");
+const node_fs_1 = require("node:fs");
 const config_1 = require("./config");
 const gpu_1 = require("./gpu");
 const settings_1 = require("./settings");
@@ -134,8 +135,8 @@ function createWindow() {
     if (saved?.maximized)
         w.maximize();
     w.once("ready-to-show", () => w.show());
-    patchMapSize(w.webContents);
     guardContents(w.webContents);
+    patchMapSize(w.webContents);
     watchCrashes(w);
     watchVisibility(w);
     w.on("close", (e) => {
@@ -436,6 +437,16 @@ async function diagnostics() {
 function setupIpc() {
     electron_1.ipcMain.on("fc:info", (e) => {
         e.returnValue = { clientVersion: electron_1.app.getVersion(), platform: process.platform, screenAudio: (0, screenShare_1.screenAudioKind)(process.platform) };
+    });
+    // Трафарет внедряется из preload до кода игры, чтобы его Shift+Y-слушатель
+    // регистрировался раньше и игра не гасила событие stopImmediatePropagation().
+    electron_1.ipcMain.on("fc:stencil-source", (e) => {
+        try {
+            e.returnValue = (0, node_fs_1.readFileSync)((0, node_path_1.join)(electron_1.app.getAppPath(), "mods", "freakrating-stencil.user.js"), "utf8");
+        }
+        catch {
+            e.returnValue = null;
+        }
     });
     electron_1.ipcMain.on("fc:setPresence", (e, presence) => {
         if (fromWorld(e))

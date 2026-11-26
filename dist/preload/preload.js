@@ -4,6 +4,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // Preload работает в sandbox: только `electron`, никаких своих модулей.
 const electron_1 = require("electron");
 const API_VERSION = 1;
+// Трафарет ставим ДО скриптов игры: иначе её window-capture слушатель
+// вызовет stopImmediatePropagation() и Shift+Y не сработает.
+try {
+    const src = electron_1.ipcRenderer.sendSync("fc:stencil-source");
+    console.info("[stencil] preload source", typeof src, src ? src.length : 0);
+    if (src)
+        electron_1.webFrame.executeJavaScript(src + "\n;0").then(() => console.info("[stencil] preload injected"), (err) => console.warn("[stencil] preload error", err));
+}
+catch (err) {
+    console.warn("[stencil] preload catch", err);
+}
 function subscribe(channel, cb) {
     if (typeof cb !== "function")
         throw new TypeError("callback must be a function");
@@ -90,6 +101,122 @@ electron_1.contextBridge.exposeInMainWorld("freakClient", Object.freeze(api));
 // Сеть (семплы, alphaTab) — тоже через главный процесс: у страницы мира CORS закрыт.
 // Страницу /world главный процесс определяет сам; на других страницах и при выключенном DJ вернёт null.
 const toArrayBuffer = (b) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+/** Запуск HUD в главном мире. Всё, что не клонируется (объект HUD), наружу не возвращаем. */
+const DJ_START = `(async () => {
+  const h = window.__freakDJHost
+  if (!h || !window.FreakDJ) return
+  const bin = async (u) => {
+    const b = await h.loadBinary(u)
+    return b instanceof ArrayBuffer ? b : new Uint8Array(b).buffer
+  }
+  await window.FreakDJ.start({
+    loadText: h.loadText,
+    loadBinary: bin,
+    libBase: h.libBase,
+    hooks: window.FreakDJHooks,
+    listSongs: h.listSongs,
+    loadConverter: async () => { await h.loadConverter(); return window.FreakDJConvert },
+  })
+})()`;
+function setupDj() {
+    const init = electron_1.ipcRenderer.sendSync("fc:dj:init");
+    if (!init)
+        return;
+    const source = (name) => electron_1.ipcRenderer.invoke("fc:dj:source", name);
+    let converter = null;
+    electron_1.contextBridge.exposeInMainWorld("__freakDJHost", Object.freeze({
+        libBase: "freakdj://lib/",
+        loadText: (url) => electron_1.ipcRenderer.invoke("fc:dj:text", String(url)),
+        loadBinary: async (url) => toArrayBuffer(await electron_1.ipcRenderer.invoke("fc:dj:bytes", String(url))),
+        listSongs: () => electron_1.ipcRenderer.invoke("fc:dj:songs"),
+        // Конвертер GP: `var FreakDJConvert` становится глобальной переменной мира.
+        loadConverter: () => (converter ||= source("converter").then(async (code) => {
+            if (!code)
+                throw new Error("конвертер недоступен");
+            await electron_1.webFrame.executeJavaScript(`${code}\n;0`);
+        })),
+    }));
+    // Перехват голоса — до кода игры, иначе отправитель микрофона уже создан и его не видно.
+    void electron_1.webFrame.executeJavaScript(`${init.hook}\n;0`).catch((err) => console.error("[FreakRating DJ] hook", err));
+    const boot = async () => {
+        try {
+            const hud = await source("hud");
+            if (!hud)
+                return;
+            await electron_1.webFrame.executeJavaScript(`${hud}\n;0`);
+            await electron_1.webFrame.executeJavaScript(DJ_START);
+        }
+        catch (err) {
+            console.error("[FreakRating DJ] HUD", err);
+            return;
+        }
+        try {
+            const player = await source("player");
+            if (!player)
+                return;
+            // Игра на игровой гитаре (ноты, ритм-игра). Как в userscript: ставим, если ещё не стоит.
+            await electron_1.webFrame.executeJavaScript(`(async () => {
+        if (window.guitarPlayer) return
+        try {
+          const __p = ${player}
+          ;await __p
+        } catch (e) { console.error('[FreakRating DJ] player', e) }
+      })()`);
+        }
+        catch (err) {
+            console.error("[FreakRating DJ] player", err);
+        }
+    };
+    // HUD (131 КБ) и гитара — самые тяжёлые куски старта. Voice-hook уже стоит,
+    // а остальное подключаем после того, как мир отрисовался. Если DJ нужен сразу —
+    // window.__freakDJBoot() из консоли или по первому действию в DJ.
+    let booted = false;
+    const startBoot = () => { if (!booted) {
+        booted = true;
+        void boot();
+    } };
+    window.__freakDJBoot = startBoot;
+    // Грузим HUD, только когда главный поток свободен: фиксированный таймер
+    // создавал заметный лаг ровно в момент загрузки.
+    const scheduleBoot = () => {
+        const run = () => setTimeout(startBoot, 1500);
+        const idle = window.requestIdleCallback;
+        if (typeof idle === "function")
+            idle(run, { timeout: 30000 });
+        else
+            setTimeout(run, 8000);
+    };
+    if (document.readyState === "loading")
+        window.addEventListener("DOMContentLoaded", scheduleBoot, { once: true });
+    else
+        scheduleBoot();
+}
+/** Греем HTTP-кэш чанков карты, чтобы 3D-карта по M открывалась быстрее. */
+function prefetchMap() {
+    const run = () => {
+        if (!location.pathname.startsWith('/world'))
+            return;
+        setTimeout(async () => {
+            try {
+                const html = await fetch(location.href, { cache: "force-cache" }).then((r) => r.text());
+                const app = html.match(/assets\/app-[\w-]+\.js/)?.[0];
+                if (!app)
+                    return;
+                const js = await fetch(new URL(app, location.origin).href, { cache: "force-cache" }).then((r) => r.text());
+                const names = [...new Set(js.match(/assets\/[A-Za-z0-9_-]*(?:Map|map|Diorama|diorama)[A-Za-z0-9_-]*\.js/g) || [])];
+                for (const n of names.slice(0, 60)) {
+                    void fetch(new URL("/" + n, location.origin).href, { cache: "force-cache" }).catch(() => { });
+                }
+                console.info("[perf] prefetch карты:", names.length, "чанков");
+            }
+            catch (_) { /* карта и без этого загрузится */ }
+        }, 20000);
+    };
+    if (document.readyState === "loading")
+        window.addEventListener("DOMContentLoaded", run, { once: true });
+    else
+        run();
+}
 /**
  * Прежняя раскладка в новой версии игры: список сверху, карта под ним.
  * Теперь это родная настройка карты в localStorage — никаких CSS-костылей.
@@ -133,7 +260,9 @@ function liftMapOffHotbar() {
 try {
     setupOldMapLayout();
     liftMapOffHotbar();
+    setupDj();
+    prefetchMap();
 }
 catch (err) {
-    console.error('[layout]', err);
+    console.error("[FreakRating]", err);
 }

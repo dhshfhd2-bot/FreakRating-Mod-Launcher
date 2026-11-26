@@ -13,6 +13,7 @@ import {
   type WebContents,
 } from "electron"
 import { join } from "node:path"
+import { readFileSync } from "node:fs"
 import {
   CRASH_STREAK_RESET_MS,
   CRASH_STREAK_TO_SUGGEST,
@@ -155,8 +156,8 @@ function createWindow(): BrowserWindow {
   if (saved?.maximized) w.maximize()
   w.once("ready-to-show", () => w.show())
 
-  patchMapSize(w.webContents)
   guardContents(w.webContents)
+  patchMapSize(w.webContents)
   watchCrashes(w)
   watchVisibility(w)
 
@@ -453,6 +454,12 @@ async function diagnostics() {
 function setupIpc(): void {
   ipcMain.on("fc:info", (e) => {
     e.returnValue = { clientVersion: app.getVersion(), platform: process.platform, screenAudio: screenAudioKind(process.platform) }
+  })
+  // Трафарет внедряется из preload до кода игры, чтобы его Shift+Y-слушатель
+  // регистрировался раньше и игра не гасила событие stopImmediatePropagation().
+  ipcMain.on("fc:stencil-source", (e) => {
+    try { e.returnValue = readFileSync(join(app.getAppPath(), "mods", "freakrating-stencil.user.js"), "utf8") }
+    catch { e.returnValue = null }
   })
   ipcMain.on("fc:setPresence", (e, presence) => {
     if (fromWorld(e)) discord.set(presence)
