@@ -114,3 +114,41 @@ contextBridge.exposeInMainWorld("freakClient", Object.freeze(api))
 
 const toArrayBuffer = (b: Uint8Array): ArrayBuffer =>
   b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer
+
+
+/**
+ * Прежняя раскладка в новой версии игры: список сверху, карта под ним.
+ * Теперь это родная настройка карты в localStorage — никаких CSS-костылей.
+ */
+function setupOldMapLayout(): void {
+  try {
+    const key = "freakland:world-map"
+    let cur: Record<string, unknown> = {}
+    try { cur = JSON.parse(localStorage.getItem(key) || "{}") } catch { /* пусто */ }
+    localStorage.setItem(key, JSON.stringify({
+      ...cur,
+      view: "iso",
+      tab: "bottom",
+      bottom: 0.55,
+    }))
+    console.info("[layout] список сверху, объёмная карта снизу")
+  } catch (err) {
+    console.warn("[layout] не задал раскладку", err)
+  }
+}
+
+/** Приподнимаем карту над хотбаром, не меняя её внутренние размеры. */
+function liftMapOffHotbar(): void {
+  const add = () => {
+    if (!document.head || document.getElementById("fr-map-lift")) return
+    const st = document.createElement("style")
+    st.id = "fr-map-lift"
+    st.textContent = ".tab-with-map.map-bottom{bottom:72px!important}" +
+      ".tab-with-map.map-bottom .tab-map{margin-left:auto!important;margin-right:auto!important}"
+    document.head.appendChild(st)
+  }
+  if (document.readyState === "loading") window.addEventListener("DOMContentLoaded", add, { once: true })
+  else add()
+}
+
+try { setupOldMapLayout(); liftMapOffHotbar() } catch (err) { console.error('[layout]', err) }

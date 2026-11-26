@@ -53,6 +53,59 @@ let suggestedBackendThisSession = false;
 let unresponsiveTimer = null;
 const visibility = new visibility_1.WindowVisibility();
 // ---------- окно мира ----------
+/**
+ * В новой версии список сам рисует карту снизу, но на всю ширину окна.
+ * Ограничиваем её ширину до 1240 px в самом расчёте размера — тогда и
+ * холст, и клики по телепортам остаются согласованными.
+ */
+function patchMapSize(wc) {
+    const dbg = wc.debugger;
+    try {
+        if (!dbg.isAttached())
+            dbg.attach("1.3");
+    }
+    catch {
+        return;
+    }
+    let enabled = false;
+    dbg.on("message", async (_event, method, params) => {
+        if (method !== "Fetch.requestPaused")
+            return;
+        const requestId = params.requestId;
+        try {
+            const res = (await dbg.sendCommand("Fetch.getResponseBody", { requestId }));
+            let text = Buffer.from(res.body, res.base64Encoded ? "base64" : "utf8").toString("utf8");
+            const before = text;
+            text = text.replace(/\{width:L\.value,height:Math\.round\(Math\.min\(Vr\.value\*Hr\.value,Vr\.value-180\)\)\}/g, "{width:Math.min(L.value,1240),height:Math.round(Math.min(Vr.value*Hr.value,Vr.value-180))}");
+            if (text !== before)
+                console.info("[fc] карта: ширина 1240 px");
+            await dbg.sendCommand("Fetch.fulfillRequest", {
+                requestId,
+                responseCode: 200,
+                responseHeaders: [{ name: "content-type", value: "application/javascript; charset=utf-8" }],
+                body: Buffer.from(text, "utf8").toString("base64"),
+            });
+        }
+        catch (err) {
+            console.warn("[fc] patch map size", err);
+            try {
+                await dbg.sendCommand("Fetch.continueRequest", { requestId });
+            }
+            catch { /* уже ушёл */ }
+        }
+    });
+    void dbg.sendCommand("Fetch.enable", {
+        patterns: [{ urlPattern: "*PlayerList-*.js", requestStage: "Response" }],
+    }).then(() => { enabled = true; }).catch((err) => console.warn("[fc] Fetch.enable", err));
+    wc.once("destroyed", () => {
+        if (!enabled)
+            return;
+        try {
+            void dbg.sendCommand("Fetch.disable");
+        }
+        catch { /* окно закрыто */ }
+    });
+}
 function createWindow() {
     const saved = settings.window;
     const w = new electron_1.BrowserWindow({
@@ -81,6 +134,7 @@ function createWindow() {
     if (saved?.maximized)
         w.maximize();
     w.once("ready-to-show", () => w.show());
+    patchMapSize(w.webContents);
     guardContents(w.webContents);
     watchCrashes(w);
     watchVisibility(w);

@@ -90,3 +90,50 @@ electron_1.contextBridge.exposeInMainWorld("freakClient", Object.freeze(api));
 // Сеть (семплы, alphaTab) — тоже через главный процесс: у страницы мира CORS закрыт.
 // Страницу /world главный процесс определяет сам; на других страницах и при выключенном DJ вернёт null.
 const toArrayBuffer = (b) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+/**
+ * Прежняя раскладка в новой версии игры: список сверху, карта под ним.
+ * Теперь это родная настройка карты в localStorage — никаких CSS-костылей.
+ */
+function setupOldMapLayout() {
+    try {
+        const key = "freakland:world-map";
+        let cur = {};
+        try {
+            cur = JSON.parse(localStorage.getItem(key) || "{}");
+        }
+        catch { /* пусто */ }
+        localStorage.setItem(key, JSON.stringify({
+            ...cur,
+            view: "iso",
+            tab: "bottom",
+            bottom: 0.55,
+        }));
+        console.info("[layout] список сверху, объёмная карта снизу");
+    }
+    catch (err) {
+        console.warn("[layout] не задал раскладку", err);
+    }
+}
+/** Приподнимаем карту над хотбаром, не меняя её внутренние размеры. */
+function liftMapOffHotbar() {
+    const add = () => {
+        if (!document.head || document.getElementById("fr-map-lift"))
+            return;
+        const st = document.createElement("style");
+        st.id = "fr-map-lift";
+        st.textContent = ".tab-with-map.map-bottom{bottom:72px!important}" +
+            ".tab-with-map.map-bottom .tab-map{margin-left:auto!important;margin-right:auto!important}";
+        document.head.appendChild(st);
+    };
+    if (document.readyState === "loading")
+        window.addEventListener("DOMContentLoaded", add, { once: true });
+    else
+        add();
+}
+try {
+    setupOldMapLayout();
+    liftMapOffHotbar();
+}
+catch (err) {
+    console.error('[layout]', err);
+}
