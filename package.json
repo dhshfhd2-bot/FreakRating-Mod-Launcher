@@ -2,28 +2,34 @@
   "name": "freakrating-mod-launcher",
   "productName": "FreakRating Mods",
   "version": "1.0.0",
-  "description": "Лаунчер поверх FreakRating с папкой модов",
-  "main": "app.js",
+  "description": "Лаунчер на базе freakrating-client-main с папкой модов",
   "author": "dhshfhd2-bot",
   "license": "UNLICENSED",
+  "private": true,
+  "main": "launcher.js",
   "scripts": {
-    "build": "node -e \"\"",
-    "dist:win": "electron-builder --win nsis --x64 --publish never"
+    "build": "tsc -p tsconfig.json && node scripts/copy-static.mjs",
+    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "build": {
     "appId": "lol.freakrating.modlauncher",
     "productName": "FreakRating Mods",
     "executableName": "FreakRating Mods",
     "artifactName": "FreakRating-Mods-Setup-${version}.${ext}",
-    "directories": {
-      "output": "release",
-      "buildResources": "build"
-    },
+    "directories": { "output": "release", "buildResources": "build" },
     "files": [
-      "app.js",
-      "package.json",
-      "mods/**/*"
+      "launcher.js",
+      "mod-loader.js",
+      "mods/**/*",
+      "dist/**/*",
+      "assets/**/*",
+      "package.json"
     ],
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**",
+      "node_modules/@vencord/venmic/**"
+    ],
+    "npmRebuild": false,
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
       "icon": "build/icon.ico"
@@ -35,6 +41,21 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "FreakRating Mods"
-    }
+    },
+    "extraResources": [{ "from": "dj", "to": "dj" }]
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3",
+    "playwright-core": "^1.64.1",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@xhayper/discord-rpc": "^1.5.1",
+    "uiohook-napi": "^1.5.5"
+  },
+  "optionalDependencies": {
+    "@vencord/venmic": "^7.2.5"
   }
 }

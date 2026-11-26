@@ -1,16 +1,17 @@
-# FreakRating Mods — простой лаунчер с модами
+# FreakRating Mods — установщик на базе freakrating-client-main
 
-Это не замена FreakRating. Лаунчер открывает мир и подключает моды из папки `mods`.
-Используется тот же профиль, что и у оригинального лаунчера — **входить заново не нужно**.
+Установщик ставит файлы из `E:\freakrating-client-dj\freakrating-client-main` **без модов**.
+Это отдельная программа со своим `appId`, она не перезаписывает оригинальный FreakRating.
+Профиль общий (`%APPDATA%\FreakRating`), поэтому вход не сбрасывается.
 
-## Как установить
+## Установка
 
-1. Скачай установщик из [Releases](../../releases) (`FreakRating-Mods-Setup-1.0.0.exe`) и запусти его.
-2. Открой папку, куда он установился. Рядом с `FreakRating Mods.exe` будет папка `mods`.
-3. Скачай нужные моды из репозиториев `FreakRating-Mod-*` и положи их `.js`-файлы в `mods`.
-4. Запусти лаунчер через ярлык **FreakRating Mods** на рабочем столе.
+1. Скачай `FreakRating-Mods-Setup-1.0.0.exe` из [Releases](../../releases) и запусти.
+2. После установки рядом с `FreakRating Mods.exe` появится папка `mods`.
+3. Скачай нужные `.js`-моды из репозиториев `FreakRating-Mod-*` и положи в `mods`.
+4. Запусти лаунчер через ярлык **FreakRating Mods**.
 
-Чтобы убрать мод — удали его `.js` из папки `mods`.
+Чтобы убрать мод — удали его `.js` из `mods`. Лог внедрения: `mods\_inject.log`.
 
 Моды:
 - https://github.com/dhshfhd2-bot/FreakRating-Mod-Optimization
