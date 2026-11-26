@@ -2,5 +2,39 @@
   "name": "freakrating-mod-launcher",
   "productName": "FreakRating Mods",
   "version": "1.0.0",
-  "main": "app.js"
+  "description": "Лаунчер поверх FreakRating с папкой модов",
+  "main": "app.js",
+  "author": "dhshfhd2-bot",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "node -e \"\"",
+    "dist:win": "electron-builder --win nsis --x64 --publish never"
+  },
+  "build": {
+    "appId": "lol.freakrating.modlauncher",
+    "productName": "FreakRating Mods",
+    "executableName": "FreakRating Mods",
+    "artifactName": "FreakRating-Mods-Setup-${version}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "app.js",
+      "package.json",
+      "mods/**/*"
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FreakRating Mods"
+    }
+  }
 }

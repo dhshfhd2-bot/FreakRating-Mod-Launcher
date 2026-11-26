@@ -8,7 +8,11 @@ const ROOT = __dirname
 const MODS_DIR = path.join(ROOT, 'mods')
 const START_URL = 'https://freakrating.lol/world'
 
-app.commandLine.appendSwitch('no-proxy-server')
+// Используем ту же папку профиля, что и оригинальный FreakRating,
+// поэтому вход/сессия не сбрасываются.
+try {
+  app.setPath('userData', path.join(app.getPath('appData'), 'FreakRating'))
+} catch (_) {}
 app.commandLine.appendSwitch('ignore-gpu-blocklist')
 app.commandLine.appendSwitch('enable-gpu-rasterization')
 app.commandLine.appendSwitch('enable-zero-copy')

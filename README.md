@@ -1,23 +1,22 @@
-# FreakRating Mods — свой лаунчер поверх игры
+# FreakRating Mods — простой лаунчер с модами
 
-Это не замена FreakRating. Лаунчер просто открывает мир и внедряет моды из папки `mods` рядом с ним.
+Это не замена FreakRating. Лаунчер открывает мир и подключает моды из папки `mods`.
+Используется тот же профиль, что и у оригинального лаунчера — **входить заново не нужно**.
 
-## Запуск
+## Как установить
 
-Дважды кликни `start.bat` или ярлык **FreakRating Mods** на рабочем столе.
+1. Скачай установщик из [Releases](../../releases) (`FreakRating-Mods-Setup-1.0.0.exe`) и запусти его.
+2. Открой папку, куда он установился. Рядом с `FreakRating Mods.exe` будет папка `mods`.
+3. Скачай нужные моды из репозиториев `FreakRating-Mod-*` и положи их `.js`-файлы в `mods`.
+4. Запусти лаунчер через ярлык **FreakRating Mods** на рабочем столе.
 
-Лаунчер использует Electron из папки клиента:
+Чтобы убрать мод — удали его `.js` из папки `mods`.
 
-```
-E:\freakrating-client-dj\freakrating-client-main\node_modules\electron\dist\electron.exe
-```
+Моды:
+- https://github.com/dhshfhd2-bot/FreakRating-Mod-Optimization
+- https://github.com/dhshfhd2-bot/FreakRating-Mod-Map
+- https://github.com/dhshfhd2-bot/FreakRating-Mod-Guitar
+- https://github.com/dhshfhd2-bot/FreakRating-Mod-Stencil
+- https://github.com/dhshfhd2-bot/FreakRating-Mod-TikTok
 
-Если путь другой — поправь его в `start.bat`.
-
-## Моды
-
-Папка `mods` создаётся автоматически рядом с лаунчером. Положи туда `.js`-файлы модов и перезапусти лаунчер.
-
-В папке `mods\_launcher.log` видно, какие моды внедрены.
-
-Моды: https://github.com/dhshfhd2-bot/FreakRating-Mod-Optimization и другие репозитории `FreakRating-Mod-*`.
+Оригинальный лаунчер: https://github.com/Egorrko/freakrating-client
