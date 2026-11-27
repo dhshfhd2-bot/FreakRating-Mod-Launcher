@@ -31,7 +31,6 @@ export function applyGpuSwitches(settings: Settings, cliBackend?: string): Appli
   if (settings.preferDiscreteGpu) {
     // Ноутбуки с двумя видеокартами: просим мощную (ANGLE/D3D11 выбирает адаптер
     // по этому флагу). Плюс запись в реестр Windows — см. preferDiscreteGpuOnWindows.
-    add("force_high_performance_gpu")
   }
 
   const backend: GraphicsBackend = isBackend(cliBackend) ? cliBackend : settings.graphicsBackend
@@ -60,6 +59,5 @@ export function preferDiscreteGpuOnWindows(enabled: boolean): void {
     ? ["add", GPU_PREF_KEY, "/v", exe, "/t", "REG_SZ", "/d", "GpuPreference=2;", "/f"]
     : ["delete", GPU_PREF_KEY, "/v", exe, "/f"]
   execFile("reg", args, { windowsHide: true }, () => {
-    // Нет прав или ключа — не страшно: остаётся флаг force_high_performance_gpu.
   })
 }

@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // Точка входа: флаги графики, окно мира, падения, рация, Discord, IPC.
 const electron_1 = require("electron");
 const node_path_1 = require("node:path");
-const node_fs_1 = require("node:fs");
 const config_1 = require("./config");
 const gpu_1 = require("./gpu");
 const settings_1 = require("./settings");
@@ -17,7 +16,6 @@ const visibility_1 = require("./visibility");
 const escape_1 = require("./escape");
 const screenShare_1 = require("./screenShare");
 const screenAudio_1 = require("./screenAudio");
-const dj_1 = require("./dj");
 // ---------- до app.ready ----------
 const cli = (0, config_1.parseCli)(process.argv, process.env);
 const settings = (0, settings_1.loadSettings)();
@@ -36,7 +34,6 @@ const startUrl = resumeUrl && policy.isAppUrl(resumeUrl) ? resumeUrl : cli.url;
 const ptt = new ptt_1.PushToTalk();
 const discord = new discord_1.DiscordPresence();
 const screenAudio = new screenAudio_1.ScreenAudio();
-const dj = new dj_1.DjHost();
 let win = null;
 /** Идёт «Записать замер» — второй не запускаем. */
 let profiling = false;
@@ -54,59 +51,6 @@ let suggestedBackendThisSession = false;
 let unresponsiveTimer = null;
 const visibility = new visibility_1.WindowVisibility();
 // ---------- окно мира ----------
-/**
- * В новой версии список сам рисует карту снизу, но на всю ширину окна.
- * Ограничиваем её ширину до 1240 px в самом расчёте размера — тогда и
- * холст, и клики по телепортам остаются согласованными.
- */
-function patchMapSize(wc) {
-    const dbg = wc.debugger;
-    try {
-        if (!dbg.isAttached())
-            dbg.attach("1.3");
-    }
-    catch {
-        return;
-    }
-    let enabled = false;
-    dbg.on("message", async (_event, method, params) => {
-        if (method !== "Fetch.requestPaused")
-            return;
-        const requestId = params.requestId;
-        try {
-            const res = (await dbg.sendCommand("Fetch.getResponseBody", { requestId }));
-            let text = Buffer.from(res.body, res.base64Encoded ? "base64" : "utf8").toString("utf8");
-            const before = text;
-            text = text.replace(/\{width:L\.value,height:Math\.round\(Math\.min\(Vr\.value\*Hr\.value,Vr\.value-180\)\)\}/g, "{width:Math.min(L.value,1240),height:Math.round(Math.min(Vr.value*Hr.value,Vr.value-180))}");
-            if (text !== before)
-                console.info("[fc] карта: ширина 1240 px");
-            await dbg.sendCommand("Fetch.fulfillRequest", {
-                requestId,
-                responseCode: 200,
-                responseHeaders: [{ name: "content-type", value: "application/javascript; charset=utf-8" }],
-                body: Buffer.from(text, "utf8").toString("base64"),
-            });
-        }
-        catch (err) {
-            console.warn("[fc] patch map size", err);
-            try {
-                await dbg.sendCommand("Fetch.continueRequest", { requestId });
-            }
-            catch { /* уже ушёл */ }
-        }
-    });
-    void dbg.sendCommand("Fetch.enable", {
-        patterns: [{ urlPattern: "*PlayerList-*.js", requestStage: "Response" }],
-    }).then(() => { enabled = true; }).catch((err) => console.warn("[fc] Fetch.enable", err));
-    wc.once("destroyed", () => {
-        if (!enabled)
-            return;
-        try {
-            void dbg.sendCommand("Fetch.disable");
-        }
-        catch { /* окно закрыто */ }
-    });
-}
 function createWindow() {
     const saved = settings.window;
     const w = new electron_1.BrowserWindow({
@@ -136,7 +80,6 @@ function createWindow() {
         w.maximize();
     w.once("ready-to-show", () => w.show());
     guardContents(w.webContents);
-    patchMapSize(w.webContents);
     watchCrashes(w);
     watchVisibility(w);
     w.on("close", (e) => {
@@ -438,16 +381,6 @@ function setupIpc() {
     electron_1.ipcMain.on("fc:info", (e) => {
         e.returnValue = { clientVersion: electron_1.app.getVersion(), platform: process.platform, screenAudio: (0, screenShare_1.screenAudioKind)(process.platform) };
     });
-    // Трафарет внедряется из preload до кода игры, чтобы его Shift+Y-слушатель
-    // регистрировался раньше и игра не гасила событие stopImmediatePropagation().
-    electron_1.ipcMain.on("fc:stencil-source", (e) => {
-        try {
-            e.returnValue = (0, node_fs_1.readFileSync)((0, node_path_1.join)(electron_1.app.getAppPath(), "mods", "freakrating-stencil.user.js"), "utf8");
-        }
-        catch {
-            e.returnValue = null;
-        }
-    });
     electron_1.ipcMain.on("fc:setPresence", (e, presence) => {
         if (fromWorld(e))
             discord.set(presence);
@@ -472,78 +405,6 @@ function setupIpc() {
     electron_1.ipcMain.handle("fc:stopScreenAudio", (e) => {
         if (fromWorld(e))
             screenAudio.stop();
-    });
-    // Доверенная клавиша от модов (синтетические KeyboardEvent игра игнорирует).
-    // CDP Input даёт браузерное событие с isTrusted=true — надёжнее sendInputEvent.
-    electron_1.ipcMain.handle("fc:press-key", async (e, keyCode) => {
-        if (!fromWorld(e) || typeof keyCode !== "string" || keyCode.length > 16)
-            return false;
-        const keys = {
-            m: { code: "KeyM", key: "m", vk: 77 },
-            M: { code: "KeyM", key: "m", vk: 77 },
-            Tab: { code: "Tab", key: "Tab", vk: 9 },
-            i: { code: "KeyI", key: "i", vk: 73 },
-        };
-        const d = keys[keyCode] ?? { code: keyCode, key: keyCode, vk: keyCode.toUpperCase().charCodeAt(0) };
-        try {
-            const dbg = win?.webContents.debugger;
-            if (dbg) {
-                try {
-                    if (!dbg.isAttached())
-                        dbg.attach("1.3");
-                }
-                catch { /* уже подключён */ }
-                const base = { modifiers: 0, code: d.code, key: d.key, windowsVirtualKeyCode: d.vk, nativeVirtualKeyCode: d.vk };
-                await dbg.sendCommand("Input.dispatchKeyEvent", { type: "keyDown", ...base });
-                await dbg.sendCommand("Input.dispatchKeyEvent", { type: "keyUp", ...base });
-                return true;
-            }
-        }
-        catch (err) {
-            console.warn("[keys] CDP", keyCode, err);
-        }
-        try {
-            win?.webContents.sendInputEvent({ type: "keyDown", keyCode });
-            win?.webContents.sendInputEvent({ type: "keyUp", keyCode });
-            return true;
-        }
-        catch (err) {
-            console.warn("[keys] press", keyCode, err);
-            return false;
-        }
-    });
-    // Встроенный DJ: только окно мира, только страница /world, только если не выключен в настройках.
-    const djAllowed = (e) => (0, settings_1.loadSettings)().dj && fromWorld(e) && !!e.senderFrame && (0, navigation_1.isWorldPath)(e.senderFrame.url);
-    electron_1.ipcMain.on("fc:dj:init", (e) => {
-        try {
-            e.returnValue = djAllowed(e) ? { hook: dj.source("hook") } : null;
-        }
-        catch (err) {
-            console.error("[dj] init", err);
-            e.returnValue = null;
-        }
-    });
-    electron_1.ipcMain.handle("fc:dj:source", (e, name) => {
-        if (!djAllowed(e) || (name !== "hud" && name !== "player" && name !== "converter"))
-            return null;
-        return dj.source(name);
-    });
-    electron_1.ipcMain.handle("fc:dj:songs", (e) => (djAllowed(e) ? dj.songs() : []));
-    electron_1.ipcMain.handle("fc:dj:text", (e, url) => {
-        if (!djAllowed(e))
-            throw new Error("DJ недоступен");
-        return dj.text(url);
-    });
-    electron_1.ipcMain.handle("fc:dj:bytes", (e, url) => {
-        if (!djAllowed(e))
-            throw new Error("DJ недоступен");
-        return dj.bytes(url);
-    });
-    electron_1.ipcMain.handle("fc:setDj", (e, on) => {
-        if (!fromSettings(e) || typeof on !== "boolean")
-            return null;
-        applySettings({ dj: on });
-        return publicSettings();
     });
     // Только окно настроек.
     electron_1.ipcMain.handle("fc:setPreferDiscreteGpu", (e, on) => {

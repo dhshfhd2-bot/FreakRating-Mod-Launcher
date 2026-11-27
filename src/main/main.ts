@@ -13,7 +13,6 @@ import {
   type WebContents,
 } from "electron"
 import { join } from "node:path"
-import { readFileSync } from "node:fs"
 import {
   CRASH_STREAK_RESET_MS,
   CRASH_STREAK_TO_SUGGEST,
@@ -40,7 +39,6 @@ import { WindowVisibility } from "./visibility"
 import { EscapeGesture } from "./escape"
 import { screenAudioKind, setupScreenShare } from "./screenShare"
 import { ScreenAudio } from "./screenAudio"
-import { DjHost } from "./dj"
 
 // ---------- до app.ready ----------
 
@@ -65,7 +63,6 @@ const startUrl = resumeUrl && policy.isAppUrl(resumeUrl) ? resumeUrl : cli.url
 const ptt = new PushToTalk()
 const discord = new DiscordPresence()
 const screenAudio = new ScreenAudio()
-const dj = new DjHost()
 
 let win: BrowserWindow | null = null
 /** Идёт «Записать замер» — второй не запускаем. */
@@ -86,47 +83,6 @@ let unresponsiveTimer: NodeJS.Timeout | null = null
 const visibility = new WindowVisibility()
 
 // ---------- окно мира ----------
-
-/**
- * В новой версии список сам рисует карту снизу, но на всю ширину окна.
- * Ограничиваем её ширину до 1240 px в самом расчёте размера — тогда и
- * холст, и клики по телепортам остаются согласованными.
- */
-function patchMapSize(wc: Electron.WebContents): void {
-  const dbg = wc.debugger
-  try { if (!dbg.isAttached()) dbg.attach("1.3") } catch { return }
-  let enabled = false
-  dbg.on("message", async (_event, method, params) => {
-    if (method !== "Fetch.requestPaused") return
-    const requestId = params.requestId as string
-    try {
-      const res = (await dbg.sendCommand("Fetch.getResponseBody", { requestId })) as { body: string; base64Encoded: boolean }
-      let text = Buffer.from(res.body, res.base64Encoded ? "base64" : "utf8").toString("utf8")
-      const before = text
-      text = text.replace(
-        /\{width:L\.value,height:Math\.round\(Math\.min\(Vr\.value\*Hr\.value,Vr\.value-180\)\)\}/g,
-        "{width:Math.min(L.value,1240),height:Math.round(Math.min(Vr.value*Hr.value,Vr.value-180))}",
-      )
-      if (text !== before) console.info("[fc] карта: ширина 1240 px")
-      await dbg.sendCommand("Fetch.fulfillRequest", {
-        requestId,
-        responseCode: 200,
-        responseHeaders: [{ name: "content-type", value: "application/javascript; charset=utf-8" }],
-        body: Buffer.from(text, "utf8").toString("base64"),
-      })
-    } catch (err) {
-      console.warn("[fc] patch map size", err)
-      try { await dbg.sendCommand("Fetch.continueRequest", { requestId }) } catch { /* уже ушёл */ }
-    }
-  })
-  void dbg.sendCommand("Fetch.enable", {
-    patterns: [{ urlPattern: "*PlayerList-*.js", requestStage: "Response" }],
-  }).then(() => { enabled = true }).catch((err) => console.warn("[fc] Fetch.enable", err))
-  wc.once("destroyed", () => {
-    if (!enabled) return
-    try { void dbg.sendCommand("Fetch.disable") } catch { /* окно закрыто */ }
-  })
-}
 
 function createWindow(): BrowserWindow {
   const saved = settings.window
@@ -157,7 +113,6 @@ function createWindow(): BrowserWindow {
   w.once("ready-to-show", () => w.show())
 
   guardContents(w.webContents)
-  patchMapSize(w.webContents)
   watchCrashes(w)
   watchVisibility(w)
 
@@ -455,12 +410,6 @@ function setupIpc(): void {
   ipcMain.on("fc:info", (e) => {
     e.returnValue = { clientVersion: app.getVersion(), platform: process.platform, screenAudio: screenAudioKind(process.platform) }
   })
-  // Трафарет внедряется из preload до кода игры, чтобы его Shift+Y-слушатель
-  // регистрировался раньше и игра не гасила событие stopImmediatePropagation().
-  ipcMain.on("fc:stencil-source", (e) => {
-    try { e.returnValue = readFileSync(join(app.getAppPath(), "mods", "freakrating-stencil.user.js"), "utf8") }
-    catch { e.returnValue = null }
-  })
   ipcMain.on("fc:setPresence", (e, presence) => {
     if (fromWorld(e)) discord.set(presence)
   })
@@ -480,69 +429,6 @@ function setupIpc(): void {
   ipcMain.handle("fc:startScreenAudio", (e) => (fromWorld(e) ? screenAudio.start() : null))
   ipcMain.handle("fc:stopScreenAudio", (e) => {
     if (fromWorld(e)) screenAudio.stop()
-  })
-
-  // Доверенная клавиша от модов (синтетические KeyboardEvent игра игнорирует).
-  // CDP Input даёт браузерное событие с isTrusted=true — надёжнее sendInputEvent.
-  ipcMain.handle("fc:press-key", async (e, keyCode: unknown) => {
-    if (!fromWorld(e) || typeof keyCode !== "string" || keyCode.length > 16) return false
-    const keys: Record<string, { code: string; key: string; vk: number }> = {
-      m: { code: "KeyM", key: "m", vk: 77 },
-      M: { code: "KeyM", key: "m", vk: 77 },
-      Tab: { code: "Tab", key: "Tab", vk: 9 },
-      i: { code: "KeyI", key: "i", vk: 73 },
-    }
-    const d = keys[keyCode] ?? { code: keyCode, key: keyCode, vk: keyCode.toUpperCase().charCodeAt(0) }
-    try {
-      const dbg = win?.webContents.debugger
-      if (dbg) {
-        try { if (!dbg.isAttached()) dbg.attach("1.3") } catch { /* уже подключён */ }
-        const base = { modifiers: 0, code: d.code, key: d.key, windowsVirtualKeyCode: d.vk, nativeVirtualKeyCode: d.vk }
-        await dbg.sendCommand("Input.dispatchKeyEvent", { type: "keyDown", ...base })
-        await dbg.sendCommand("Input.dispatchKeyEvent", { type: "keyUp", ...base })
-        return true
-      }
-    } catch (err) {
-      console.warn("[keys] CDP", keyCode, err)
-    }
-    try {
-      win?.webContents.sendInputEvent({ type: "keyDown", keyCode })
-      win?.webContents.sendInputEvent({ type: "keyUp", keyCode })
-      return true
-    } catch (err) {
-      console.warn("[keys] press", keyCode, err)
-      return false
-    }
-  })
-
-  // Встроенный DJ: только окно мира, только страница /world, только если не выключен в настройках.
-  const djAllowed = (e: IpcMainEvent | IpcMainInvokeEvent): boolean =>
-    loadSettings().dj && fromWorld(e) && !!e.senderFrame && isWorldPath(e.senderFrame.url)
-  ipcMain.on("fc:dj:init", (e) => {
-    try {
-      e.returnValue = djAllowed(e) ? { hook: dj.source("hook") } : null
-    } catch (err) {
-      console.error("[dj] init", err)
-      e.returnValue = null
-    }
-  })
-  ipcMain.handle("fc:dj:source", (e, name) => {
-    if (!djAllowed(e) || (name !== "hud" && name !== "player" && name !== "converter")) return null
-    return dj.source(name)
-  })
-  ipcMain.handle("fc:dj:songs", (e) => (djAllowed(e) ? dj.songs() : []))
-  ipcMain.handle("fc:dj:text", (e, url) => {
-    if (!djAllowed(e)) throw new Error("DJ недоступен")
-    return dj.text(url)
-  })
-  ipcMain.handle("fc:dj:bytes", (e, url) => {
-    if (!djAllowed(e)) throw new Error("DJ недоступен")
-    return dj.bytes(url)
-  })
-  ipcMain.handle("fc:setDj", (e, on) => {
-    if (!fromSettings(e) || typeof on !== "boolean") return null
-    applySettings({ dj: on })
-    return publicSettings()
   })
 
   // Только окно настроек.
