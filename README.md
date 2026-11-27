@@ -1,20 +1,19 @@
-# FreakRating — папка с модами (портативная версия)
+# FreakRating — чистая сборка + моды
 
-Ничего устанавливать не нужно. Это точная папка `freakrating-client-main` с загрузчиком модов.
+Папка с клиентом: `FreakRating-Clean`. Запуск — `start.bat`.
 
-## Как запустить
+## Куда ставить файлы модов
 
-1. Скачай `FreakRating-Client-Mods.zip` из [Releases](../../releases).
-2. Распакуй в любую папку.
-3. Запусти `start.bat` — он откроет игру так же, как у тебя `E:\freakrating-client-dj\freakrating-client-main\start.bat`.
+| Мод | Репозиторий | Файл | Куда положить |
+|---|---|---|---|
+| Художка (трафарет) | [Stencil](https://github.com/dhshfhd2-bot/FreakRating-Mod-Stencil) | `freakrating-stencil.user.js` | `mods\` |
+| Оптимизация | [Optimization](https://github.com/dhshfhd2-bot/FreakRating-Mod-Optimization) | `optimization.js` | `mods\` |
+| Гитара | [Guitar](https://github.com/dhshfhd2-bot/FreakRating-Mod-Guitar) | `guitar.js` | `mods\` |
+| Карта | [Map](https://github.com/dhshfhd2-bot/FreakRating-Mod-Map) | `map.js` | `mods\` |
+| TikTok | [TikTok](https://github.com/dhshfhd2-bot/FreakRating-Mod-TikTok) | `tiktok-phone.js` | корень клиента, рядом с `launcher.js`, плюс строка `load('./tiktok-phone.js')` в `launcher.js` |
 
-Если Electron не найдётся, `start.bat` сам выполнит `npm install electron`.
+`mods\*.js` внедряются в окно игры. `tiktok-phone.js` — мод главного процесса, поэтому он лежит в корне.
 
-## Моды
-
-Папка `mods` в архиве **пустая** — туда нужно самому положить `.js`-файлы модов.
-Хочешь убрать мод — удали его `.js` оттуда. Лог внедрения: `mods\_inject.log`.
-
-Моды: репозитории `FreakRating-Mod-*` на этом аккаунте.
+Лог внедрения: `mods\_inject.log`.
 
 Оригинальный лаунчер: https://github.com/Egorrko/freakrating-client
